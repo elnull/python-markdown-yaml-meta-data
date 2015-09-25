@@ -47,29 +47,34 @@ License: BSD (see LICENSE.md for details)
 
 """
 
+
 from __future__ import absolute_import
 from __future__ import unicode_literals
 from markdown import Extension
 from markdown.preprocessors import Preprocessor
 import yaml
+
 try:
     from yaml import CBaseLoader as Loader
 except ImportError:
-    from yaml import BaseLoader
+    from yaml import BaseLoader as Loader
 
 
 # Override the default string handling function to always return unicode objects
 def construct_yaml_str(self, node):
     return self.construct_scalar(node)
+
 Loader.add_constructor(u'tag:yaml.org,2002:str', construct_yaml_str)
 
 
-class MetaYamlExtension (Extension):
+class MetaYamlExtension(Extension):
     """Extension for parsing YAML-Metadata with Python-Markdown."""
 
     def extendMarkdown(self, md, md_globals):
         """Add MetaYamlPreprocessor to Markdown instance."""
-        md.preprocessors.add("meta_yaml", MetaYamlPreprocessor(md), ">meta")
+
+        md.preprocessors.add("meta_yaml", MetaYamlPreprocessor(md), "<meta")
+
 
 
 class MetaYamlPreprocessor(Preprocessor):
@@ -84,26 +89,45 @@ class MetaYamlPreprocessor(Preprocessor):
 
     def run(self, lines):
         """ Parse Meta-Data and store in Markdown.Meta. """
+
         yaml_block = []
         line = lines.pop(0)
+
         if line == "---":
             while lines:
                 line = lines.pop(0)
                 if line in ("---", "..."):
                     break
                 yaml_block.append(line)
+
         else:
             lines.insert(0, line)
+
         if yaml_block:
             meta = yaml.load("\n".join(yaml_block), Loader)
 
             # Compat with PyMarkdown's meta: Keys are lowercase, values are lists
             meta = {k.lower(): v if isinstance(v, list) else [v] for k, v in meta.items()}
 
+#           # this is what the code should look like, if the Markdown "meta"
+#           # extension would tolerate other extensions writing to markdown.Meta
+#           if hasattr(self.markdown, 'Meta'):
+#               self.markdown.update(meta)
+#           else:
+#               self.markdown.Meta = meta
+
+            # hacky quick fix for the moment (see above)
+            if hasattr(self.markdown, 'Meta'):
+                self.markdown._Meta_data = self.markdown.Meta
+            else:
+                self.markdown._Meta_data = {}
+            self.markdown.__class__.Meta = property(lambda self: self._Meta_data, lambda self, value: self._Meta_data.update(value))
             self.markdown.Meta = meta
+
         return lines
 
 
 def makeExtension(configs={}):
     """set up extension."""
+
     return MetaYamlExtension(configs=configs)
