@@ -91,9 +91,14 @@ class MetaYamlPreprocessor(Preprocessor):
         """ Parse Meta-Data and store in Markdown.Meta. """
 
         yaml_block = []
-        line = lines.pop(0)
+        yaml_start_found = False
+        while lines:
+            line = lines.pop(0)
+            if line == "---":
+                yaml_start_found = True
+                break
 
-        if line == "---":
+        if yaml_start_found == True:
             while lines:
                 line = lines.pop(0)
                 if line in ("---", "..."):
